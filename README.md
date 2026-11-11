@@ -243,13 +243,13 @@ sequenceDiagram
     participant K as Outbox + Kafka
     participant P as Payment provider
     participant O as Order aggregate
-    C->>A: Create cart; set items with expected version
+    C->>A: Create cart, set items with expected version
     A->>DB: Persist cart and server-priced lines
     C->>A: Submit checkout + idempotency key
     A->>DB: Cart lock + order + payment + saga + receipt + outbox
     A-->>C: Accepted receipt with correlated IDs
     K->>A: Authorization requested
-    A->>DB: Validate durable operation; record dispatch; COMMIT
+    A->>DB: Validate durable operation, record dispatch, COMMIT
     A->>P: Authorize using stable provider key
     P-->>A: Provider outcome
     A->>DB: Payment result + saga progress + capture intent + inbox/outbox
