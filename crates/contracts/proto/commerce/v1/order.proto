@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package commerce.v1;
+
+import "commerce/v1/common.proto";
+service OrderService {
+  rpc GetOrder(GetOrderRequest) returns (OrderResponse);
+  rpc GetOrderSummary(GetOrderRequest) returns (OrderSummaryResponse);
+}
+
+message GetOrderRequest {
+  string order_id = 1;
+}
+
+message OrderResponse {
+  string order_id = 1;
+  string customer_id = 2;
+  string checkout_id = 3;
+  string status = 4;
+  string cart_id = 5;
+  int64 total_minor = 6;
+  string currency = 7;
+  repeated ItemResponse items = 8;
+  string payment_id = 9;
+  string created_at = 10;
+}
+
+message OrderSummaryResponse {
+  string order_id = 1;
+  string customer_id = 2;
+  string status = 3;
+  string payment_status = 4;
+  int64 total_minor = 5;
+  string currency = 6;
+  int64 version = 7;
+  string updated_at = 8;
+}

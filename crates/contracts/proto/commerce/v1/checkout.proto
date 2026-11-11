@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package commerce.v1;
+
+service CheckoutService {
+  rpc Checkout(CheckoutRequest) returns (CheckoutResponse);
+  rpc CancelCheckout(GetCheckoutRequest) returns (CheckoutViewResponse);
+  rpc GetCheckout(GetCheckoutRequest) returns (CheckoutViewResponse);
+}
+
+message CheckoutRequest {
+  string idempotency_key = 1;
+  string cart_id = 2;
+  int64 expected_cart_version = 3;
+  string payment_method_token = 4;
+}
+
+message CheckoutResponse {
+  string checkout_id = 1;
+  string cart_id = 2;
+  string order_id = 3;
+  string payment_id = 4;
+  string status = 5;
+  int64 total_minor = 6;
+  string currency = 7;
+}
+
+message GetCheckoutRequest {
+  string checkout_id = 1;
+}
+
+message CheckoutViewResponse {
+  string checkout_id = 1;
+  string cart_id = 2;
+  string order_id = 3;
+  string payment_id = 4;
+  string status = 5;
+  int64 total_minor = 6;
+  string currency = 7;
+  string created_at = 8;
+  string expires_at = 9;
+}

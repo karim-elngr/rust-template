@@ -1,0 +1,49 @@
+# Use the reviewed BuildKit daemon's bundled Dockerfile frontend. No implicit
+# mutable public frontend image is pulled by a syntax directive.
+# Public tags are local bootstrap defaults. Company builds supply approved
+# digest-pinned bases and an approved OS package repository/snapshot.
+ARG RUST_BASE=rust:1.99.1-bookworm
+ARG RUNTIME_BASE=debian:bookworm-slim
+
+FROM ${RUST_BASE} AS tools
+# Override with the approved rustup mirror when preparing the company image.
+ARG RUSTUP_DIST_SERVER=https://static.rust-lang.org
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      build-essential ca-certificates cmake docker.io git libz-dev pkg-config python3 \
+    && rm -rf /var/lib/apt/lists/*
+RUN RUSTUP_DIST_SERVER="$RUSTUP_DIST_SERVER" rustup component add --toolchain 1.99.1 rustfmt clippy llvm-tools-preview
+ENV RUSTUP_AUTO_INSTALL=0
+COPY .cargo/config.toml /tmp/cargo-public.toml
+COPY scripts/prepare-tool-sources.py /usr/local/libexec/prepare-tool-sources.py
+# Networked intake only runs Cargo metadata/fetch, never third-party build
+# scripts. Each tool keeps its own bundled lockfile, independent of the seed
+# manifest used solely to locate its exact source package.
+RUN --mount=type=secret,id=cargo-config \
+    --mount=type=secret,id=cargo-token \
+    set -eu; \
+    config=/tmp/cargo-public.toml; \
+    if [ -f /run/secrets/cargo-config ]; then config=/run/secrets/cargo-config; fi; \
+    if [ -f /run/secrets/cargo-token ]; then export CARGO_REGISTRIES_COMPANY_TOKEN="$(cat /run/secrets/cargo-token)"; fi; \
+    python3 /usr/local/libexec/prepare-tool-sources.py \
+      --cargo-config "$config" --output /opt/tool-sources
+# Compilation has neither network access nor the token mount/environment. The
+# remaining config contains only mirror settings, never embedded credentials.
+RUN --network=none --mount=type=secret,id=cargo-config \
+    set -eu; \
+    unset CARGO_REGISTRIES_COMPANY_TOKEN; \
+    config=/tmp/cargo-public.toml; \
+    if [ -f /run/secrets/cargo-config ]; then config=/run/secrets/cargo-config; fi; \
+    export CARGO_TARGET_DIR=/tmp/tool-build-target; \
+    cargo +1.99.1 install --config "$config" --path /opt/tool-sources/cargo-llvm-cov --frozen; \
+    cargo +1.99.1 install --config "$config" --path /opt/tool-sources/cargo-deny --frozen; \
+    rm -rf /tmp/tool-build-target
+WORKDIR /workspace
+
+FROM ${RUNTIME_BASE} AS runtime
+# librdkafka/OpenSSL are built from source; libz and libgcc remain system libs.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ca-certificates libgcc-s1 zlib1g \
+    && rm -rf /var/lib/apt/lists/*
+ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+WORKDIR /app
+USER 65532:65532

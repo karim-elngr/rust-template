@@ -1,0 +1,83 @@
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+
+stages: [verify, images]
+
+# Bootstrap requires company-approved image refs; see README's supply-chain section.
+# The dedicated runner has a Docker socket and reachable published ports.
+# Do not run untrusted forks on this runner or expose production credentials.
+default:
+  image:
+    name: $RUST_TOOLS_IMAGE
+    entrypoint: [""]
+  tags: [rust-docker-isolated]
+  interruptible: true
+  before_script:
+    - bash scripts/ci-prepare.sh
+    # Fetching is finished. Rust build scripts do not need this credential.
+    - unset CARGO_REGISTRIES_COMPANY_TOKEN
+  cache:
+    key:
+      prefix: rust-1.99.1-$CI_RUNNER_ID-$CI_COMMIT_REF_SLUG
+      files: [Cargo.lock]
+    paths:
+      - .cache/cargo/registry/
+      - .cache/cargo/git/
+      - target/
+    policy: pull-push
+
+variables:
+  CARGO_HOME: $CI_PROJECT_DIR/.cache/cargo
+  CARGO_TERM_COLOR: never
+  RUST_BACKTRACE: "1"
+  RUSTUP_AUTO_INSTALL: "0"
+  COVERAGE_MIN_LINES: "70"
+  TEST_THREADS: "1"
+  DEPENDENCY_MODE: mirror
+  DOCKER_HOST: unix:///var/run/docker.sock
+  TESTCONTAINERS_HOST_OVERRIDE: host.docker.internal
+
+format-and-lint:
+  stage: verify
+  script:
+    - unset CARGO_REGISTRIES_COMPANY_TOKEN
+    - cargo fmt --all -- --check
+    - cargo clippy --workspace --all-targets --frozen -- -D warnings
+
+tests-and-coverage:
+  stage: verify
+  script:
+    - docker info >/dev/null
+    - bash scripts/coverage.sh
+  coverage: '/LINE_COVERAGE=([0-9]+\.[0-9]+)%/'
+  artifacts:
+    when: always
+    expire_in: 14 days
+    paths: [coverage/]
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage/cobertura.xml
+
+dependencies:
+  stage: verify
+  script:
+    # This refreshes RustSec from GitHub. Air-gapped runners must receive a
+    # current verified DB and use --frozen (maximum-db-staleness still applies).
+    - cargo deny --locked check advisories bans licenses sources
+
+build-runtime-images:
+  stage: images
+  # Only this job retains the read-only fetch token for BuildKit secret mounts.
+  # Docker compilation runs offline without that mount or environment variable.
+  before_script:
+    - bash scripts/ci-prepare.sh
+  script:
+    - export BUILDER_IMAGE="$RUST_TOOLS_IMAGE" RUNTIME_IMAGE="$RUST_RUNTIME_IMAGE"
+    - export IMAGE_PREFIX="rust-commerce-ci" IMAGE_TAG="$CI_PIPELINE_ID"
+    - bash scripts/build-images.sh
+  # Build every target for MRs; publishing and deployment are company release
+  # steps. No registry write token or cluster credential is needed by this job.

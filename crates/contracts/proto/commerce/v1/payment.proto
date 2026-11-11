@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package commerce.v1;
+
+service PaymentService {
+  rpc GetPayment(GetPaymentRequest) returns (PaymentResponse);
+}
+
+message GetPaymentRequest {
+  string payment_id = 1;
+}
+
+message PaymentResponse {
+  string payment_id = 1;
+  string order_id = 2;
+  string checkout_id = 3;
+  string status = 4;
+  bool cancellation_requested = 5;
+  int64 total_minor = 6;
+  string currency = 7;
+}

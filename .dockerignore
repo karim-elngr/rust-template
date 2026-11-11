@@ -1,0 +1,13 @@
+.git
+.env
+.env.*
+!.env.example
+.cargo/company.toml
+.cache
+target
+coverage
+artifacts
+# vendor is intentionally included for DEPENDENCY_STAGE=dependencies-vendored.
+*.profraw
+*.profdata
+**/.DS_Store

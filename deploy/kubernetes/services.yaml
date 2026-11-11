@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: http-api
+spec:
+  type: ClusterIP
+  selector: {app.kubernetes.io/name: http-api}
+  ports:
+    - {name: http, port: 8080, targetPort: http}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grpc-api
+spec:
+  type: ClusterIP
+  selector: {app.kubernetes.io/name: grpc-api}
+  ports:
+    - {name: grpc, port: 50051, targetPort: grpc, appProtocol: kubernetes.io/h2c}

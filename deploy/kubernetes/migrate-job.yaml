@@ -1,0 +1,45 @@
+# Apply namespace/config/trust first, then this release job, wait for success,
+# then roll out apps. Use a unique job name per release; Jobs are immutable.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: migrate-release-replace-me
+  namespace: commerce
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 300
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: migrate, app.kubernetes.io/part-of: commerce}
+    spec:
+      restartPolicy: Never
+      serviceAccountName: commerce
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 45
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: migrate
+          image: registry.example.invalid/commerce/migrate:replace-me
+          envFrom: [{configMapRef: {name: commerce-config}}]
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                # Separate DDL credential; app/worker roles should not have DDL.
+                secretKeyRef: {name: commerce-migration-secrets, key: database-url}
+          resources:
+            requests: {cpu: 100m, memory: 64Mi}
+            limits: {cpu: "1", memory: 256Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          volumeMounts:
+            - {name: company-ca, mountPath: /etc/company-ca, readOnly: true}
+      volumes:
+        - name: company-ca
+          configMap: {name: commerce-trust-bundle}

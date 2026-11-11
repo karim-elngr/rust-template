@@ -1,0 +1,16 @@
+# Copy to an ignored file, replace the URL, and pass --config explicitly.
+# The sparse endpoint must end in / and serve BOTH index and crate archives.
+[source.crates-io]
+replace-with = "company"
+
+[source.company]
+registry = "sparse+https://packages.example.invalid/cargo/index/"
+
+# Matching registry identity lets Cargo find the mirror's credential provider.
+[registries.company]
+index = "sparse+https://packages.example.invalid/cargo/index/"
+credential-provider = "cargo:token"
+
+# Supply a read-only CARGO_REGISTRIES_COMPANY_TOKEN outside this file if needed.
+# Source replacement preserves upstream crates.io identity/checksums. Put your
+# private crates in a separate named registry; do not add them to this mirror.

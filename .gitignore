@@ -1,0 +1,10 @@
+/target/
+/.cache/
+/coverage/
+/.env
+/.cargo/company.toml
+/vendor/
+/artifacts/
+*.profraw
+*.profdata
+.DS_Store

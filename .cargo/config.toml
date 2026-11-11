@@ -1,0 +1,8 @@
+[alias]
+ci-check = "clippy --workspace --all-targets --locked -- -D warnings"
+
+[net]
+retry = 3
+
+# Company source replacement is deliberately configured outside this public
+# default. See company.toml.example and docs/supply-chain.md.

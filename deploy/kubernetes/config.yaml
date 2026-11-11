@@ -1,0 +1,41 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: commerce
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: commerce-config
+data:
+  APP_ENV: production
+  # A declaration of the company ingress boundary; this does not implement auth.
+  API_AUTH_MODE: upstream
+  DB_MAX_CONNECTIONS: "10"
+  HTTP_ADDR: 0.0.0.0:8080
+  GRPC_ADDR: 0.0.0.0:50051
+  HEALTH_ADDR: 0.0.0.0:9000
+  KAFKA_BROKERS: kafka.example.invalid:9093
+  KAFKA_TOPIC: commerce.events.v1
+  KAFKA_GROUP_ID: commerce-workflows-v1
+  KAFKA_SECURITY_PROTOCOL: SSL
+  KAFKA_SSL_CA_LOCATION: /etc/company-ca/ca.crt
+  OTEL_ENABLED: "true"
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector.observability.svc.cluster.local:4318
+  OTEL_EXPORTER_OTLP_TIMEOUT: "2000"
+  OTEL_METRIC_EXPORT_INTERVAL: "10000"
+  TELEMETRY_SHUTDOWN_TIMEOUT_SECONDS: "5"
+  SHUTDOWN_TIMEOUT_SECONDS: "25"
+  REQUEST_TIMEOUT_SECONDS: "10"
+  POLL_INTERVAL_MS: "500"
+  OUTBOX_BATCH_SIZE: "50"
+  OUTBOX_LEASE_SECONDS: "60"
+  EXPIRY_BATCH_SIZE: "100"
+  LOG_BUFFER_LINES: "8192"
+  RUST_LOG: info
+# Provision commerce-secrets/database-url and commerce-trust-bundle/ca.crt using
+# company secret/trust distribution, not cleartext credentials checked into Git.
+# The URL must use sslmode=verify-full&sslrootcert=/etc/company-ca/ca.crt.
+# For SASL_SSL, add secretKeyRef entries for KAFKA_SASL_USERNAME/PASSWORD and set
+# KAFKA_SASL_MECHANISM to PLAIN, SCRAM-SHA-256 or SCRAM-SHA-512.

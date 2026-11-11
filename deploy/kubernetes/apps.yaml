@@ -1,0 +1,293 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: http-api
+  labels:
+    app.kubernetes.io/name: http-api
+    app.kubernetes.io/part-of: commerce
+spec:
+  replicas: 2
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: http-api
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: {maxUnavailable: 0, maxSurge: 1}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: http-api
+        app.kubernetes.io/part-of: commerce
+    spec:
+      serviceAccountName: commerce
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 45
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: app
+          # Replace with your published image@sha256 digest.
+          image: registry.example.invalid/commerce/http-api:replace-me
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef: {name: commerce-config}
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef: {name: commerce-secrets, key: database-url}
+          ports:
+            - {name: http, containerPort: 8080}
+            - {name: health, containerPort: 9000}
+          startupProbe:
+            httpGet: {path: /health/live, port: health}
+            periodSeconds: 2
+            failureThreshold: 30
+          readinessProbe:
+            httpGet: {path: /health/ready, port: health}
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+          livenessProbe:
+            httpGet: {path: /health/live, port: health}
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {cpu: "1", memory: 512Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+            - {name: company-ca, mountPath: /etc/company-ca, readOnly: true}
+      volumes:
+        - name: tmp
+          emptyDir: {medium: Memory, sizeLimit: 16Mi}
+        - name: company-ca
+          configMap: {name: commerce-trust-bundle}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grpc-api
+  labels:
+    app.kubernetes.io/name: grpc-api
+    app.kubernetes.io/part-of: commerce
+spec:
+  replicas: 2
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: grpc-api
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: {maxUnavailable: 0, maxSurge: 1}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: grpc-api
+        app.kubernetes.io/part-of: commerce
+    spec:
+      serviceAccountName: commerce
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 45
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: app
+          # Replace with your published image@sha256 digest.
+          image: registry.example.invalid/commerce/grpc-api:replace-me
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef: {name: commerce-config}
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef: {name: commerce-secrets, key: database-url}
+          ports:
+            - {name: grpc, containerPort: 50051}
+            - {name: health, containerPort: 9000}
+          startupProbe:
+            httpGet: {path: /health/live, port: health}
+            periodSeconds: 2
+            failureThreshold: 30
+          readinessProbe:
+            httpGet: {path: /health/ready, port: health}
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+          livenessProbe:
+            httpGet: {path: /health/live, port: health}
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {cpu: "1", memory: 512Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+            - {name: company-ca, mountPath: /etc/company-ca, readOnly: true}
+      volumes:
+        - name: tmp
+          emptyDir: {medium: Memory, sizeLimit: 16Mi}
+        - name: company-ca
+          configMap: {name: commerce-trust-bundle}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka-outbox-poller
+  labels:
+    app.kubernetes.io/name: kafka-outbox-poller
+    app.kubernetes.io/part-of: commerce
+spec:
+  replicas: 2
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kafka-outbox-poller
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: {maxUnavailable: 0, maxSurge: 1}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: kafka-outbox-poller
+        app.kubernetes.io/part-of: commerce
+    spec:
+      serviceAccountName: commerce
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 45
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: app
+          # Replace with your published image@sha256 digest.
+          image: registry.example.invalid/commerce/kafka-outbox-poller:replace-me
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef: {name: commerce-config}
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef: {name: commerce-secrets, key: database-url}
+          ports:
+            - {name: health, containerPort: 9000}
+          startupProbe:
+            httpGet: {path: /health/live, port: health}
+            periodSeconds: 2
+            failureThreshold: 30
+          readinessProbe:
+            httpGet: {path: /health/ready, port: health}
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+          livenessProbe:
+            httpGet: {path: /health/live, port: health}
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {cpu: "1", memory: 512Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+            - {name: company-ca, mountPath: /etc/company-ca, readOnly: true}
+      volumes:
+        - name: tmp
+          emptyDir: {medium: Memory, sizeLimit: 16Mi}
+        - name: company-ca
+          configMap: {name: commerce-trust-bundle}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka-consumer
+  labels:
+    app.kubernetes.io/name: kafka-consumer
+    app.kubernetes.io/part-of: commerce
+spec:
+  replicas: 2
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kafka-consumer
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: {maxUnavailable: 0, maxSurge: 1}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: kafka-consumer
+        app.kubernetes.io/part-of: commerce
+    spec:
+      serviceAccountName: commerce
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 45
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: app
+          # Replace with your published image@sha256 digest.
+          image: registry.example.invalid/commerce/kafka-consumer:replace-me
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef: {name: commerce-config}
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef: {name: commerce-secrets, key: database-url}
+          ports:
+            - {name: health, containerPort: 9000}
+          startupProbe:
+            httpGet: {path: /health/live, port: health}
+            periodSeconds: 2
+            failureThreshold: 30
+          readinessProbe:
+            httpGet: {path: /health/ready, port: health}
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+          livenessProbe:
+            httpGet: {path: /health/live, port: health}
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {cpu: "1", memory: 512Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+            - {name: company-ca, mountPath: /etc/company-ca, readOnly: true}
+      volumes:
+        - name: tmp
+          emptyDir: {medium: Memory, sizeLimit: 16Mi}
+        - name: company-ca
+          configMap: {name: commerce-trust-bundle}

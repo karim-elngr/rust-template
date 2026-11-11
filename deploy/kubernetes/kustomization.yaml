@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: commerce
+resources:
+  - namespace.yaml
+  - config.yaml
+  - apps.yaml
+  - services.yaml
+  - cronjob.yaml
+# Run migrate-job.yaml separately before rolling out a compatible application
+# release. Add a reviewed network policy overlay for your actual environment.

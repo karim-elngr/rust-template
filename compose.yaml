@@ -1,0 +1,152 @@
+name: rust-commerce
+
+x-app-environment: &app-environment
+  APP_ENV: local
+  API_AUTH_MODE: local-unsafe
+  DATABASE_URL: postgres://app:app@postgres:5432/commerce
+  HTTP_ADDR: 0.0.0.0:8080
+  GRPC_ADDR: 0.0.0.0:50051
+  HEALTH_ADDR: 0.0.0.0:9000
+  KAFKA_BROKERS: kafka:9092
+  KAFKA_TOPIC: commerce.events.v1
+  KAFKA_GROUP_ID: commerce-workflows-v1
+  KAFKA_SECURITY_PROTOCOL: PLAINTEXT
+  OTEL_ENABLED: "true"
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+  OTEL_EXPORTER_OTLP_TIMEOUT: "2000"
+  OTEL_METRIC_EXPORT_INTERVAL: "10000"
+  TELEMETRY_SHUTDOWN_TIMEOUT_SECONDS: "5"
+  SHUTDOWN_TIMEOUT_SECONDS: "25"
+  RUST_LOG: ${RUST_LOG:-info}
+
+x-build-args: &build-args
+  BUILDER_IMAGE: ${BUILDER_IMAGE:-rust-template-tools:local}
+  RUNTIME_IMAGE: ${RUNTIME_IMAGE:-rust-template-runtime:local}
+  CARGO_BUILD_JOBS: ${CARGO_BUILD_JOBS:-2}
+
+x-app: &app
+  init: true
+  restart: unless-stopped
+  read_only: true
+  tmpfs: ["/tmp:rw,noexec,nosuid,size=16m"]
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  stop_grace_period: 45s
+  environment: *app-environment
+  depends_on:
+    migrate: {condition: service_completed_successfully}
+    kafka-init: {condition: service_completed_successfully}
+    otel-collector: {condition: service_started}
+
+services:
+  postgres:
+    image: postgres:18.6-bookworm
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: commerce
+    ports: ["127.0.0.1:5432:5432"]
+    volumes: ["postgres-data:/var/lib/postgresql"]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U app -d commerce"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  kafka:
+    image: apache/kafka:4.4.0
+    hostname: kafka
+    ports: ["127.0.0.1:19092:19092"]
+    environment:
+      KAFKA_NODE_ID: "1"
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: INTERNAL://:9092,EXTERNAL://:19092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:19092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+      KAFKA_SHARE_COORDINATOR_STATE_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_SHARE_COORDINATOR_STATE_TOPIC_MIN_ISR: "1"
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: "0"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+    volumes: ["kafka-data:/var/lib/kafka/data"]
+    healthcheck:
+      test: [CMD-SHELL, "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list >/dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 15s
+
+  kafka-init:
+    image: apache/kafka:4.4.0
+    depends_on:
+      kafka: {condition: service_healthy}
+    entrypoint: ["/opt/kafka/bin/kafka-topics.sh"]
+    command:
+      - --bootstrap-server
+      - kafka:9092
+      - --create
+      - --if-not-exists
+      - --topic
+      - commerce.events.v1
+      - --partitions
+      - "3"
+      - --replication-factor
+      - "1"
+
+  otel-collector:
+    image: otel/opentelemetry-collector:0.165.0
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes: ["./deploy/otel-collector.yaml:/etc/otelcol/config.yaml:ro"]
+    ports: ["127.0.0.1:4318:4318"]
+
+  migrate:
+    <<: *app
+    image: ${IMAGE_PREFIX:-rust-commerce}/migrate:${IMAGE_TAG:-local}
+    restart: "no"
+    build: {context: ., target: migrate, args: *build-args}
+    depends_on:
+      postgres: {condition: service_healthy}
+
+  http-api:
+    <<: *app
+    image: ${IMAGE_PREFIX:-rust-commerce}/http-api:${IMAGE_TAG:-local}
+    build: {context: ., target: http-api, args: *build-args}
+    ports: ["127.0.0.1:8080:8080", "127.0.0.1:9001:9000"]
+
+  grpc-api:
+    <<: *app
+    image: ${IMAGE_PREFIX:-rust-commerce}/grpc-api:${IMAGE_TAG:-local}
+    build: {context: ., target: grpc-api, args: *build-args}
+    ports: ["127.0.0.1:50051:50051", "127.0.0.1:9002:9000"]
+
+  kafka-outbox-poller:
+    <<: *app
+    image: ${IMAGE_PREFIX:-rust-commerce}/kafka-outbox-poller:${IMAGE_TAG:-local}
+    build: {context: ., target: kafka-outbox-poller, args: *build-args}
+    ports: ["127.0.0.1:9003:9000"]
+
+  kafka-consumer:
+    <<: *app
+    image: ${IMAGE_PREFIX:-rust-commerce}/kafka-consumer:${IMAGE_TAG:-local}
+    build: {context: ., target: kafka-consumer, args: *build-args}
+    ports: ["127.0.0.1:9004:9000"]
+
+  cronjob:
+    <<: *app
+    image: ${IMAGE_PREFIX:-rust-commerce}/cronjob:${IMAGE_TAG:-local}
+    restart: "no"
+    profiles: [jobs]
+    build: {context: ., target: cronjob, args: *build-args}
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+
+volumes:
+  postgres-data:
+  kafka-data:

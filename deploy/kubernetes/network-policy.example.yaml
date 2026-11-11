@@ -1,0 +1,48 @@
+# Example only: replace selectors/ports for the company's gateway, data services
+# and telemetry. Add it to an overlay once reviewed. Requires a CNI that enforces
+# NetworkPolicy. There is intentionally no broad external CIDR allow rule.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: commerce-boundary
+  namespace: commerce
+spec:
+  podSelector:
+    matchLabels: {app.kubernetes.io/part-of: commerce}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: ingress-system}
+          podSelector:
+            matchLabels: {app.kubernetes.io/name: company-auth-gateway}
+      ports:
+        - {protocol: TCP, port: 8080}
+        - {protocol: TCP, port: 50051}
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: kube-system}
+          podSelector:
+            matchLabels: {k8s-app: kube-dns}
+      ports:
+        - {protocol: UDP, port: 53}
+        - {protocol: TCP, port: 53}
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: data}
+          podSelector:
+            matchLabels: {app.kubernetes.io/name: postgres}
+      ports: [{protocol: TCP, port: 5432}]
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: data}
+          podSelector:
+            matchLabels: {app.kubernetes.io/name: kafka}
+      ports: [{protocol: TCP, port: 9093}]
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: observability}
+          podSelector:
+            matchLabels: {app.kubernetes.io/name: otel-collector}
+      ports: [{protocol: TCP, port: 4318}]

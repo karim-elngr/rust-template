@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package commerce.v1;
+
+import "commerce/v1/common.proto";
+service CartService {
+  rpc CreateCart(CreateCartRequest) returns (CartResponse);
+  rpc AddItem(AddCartItemRequest) returns (CartResponse);
+  rpc RemoveItem(RemoveCartItemRequest) returns (CartResponse);
+  rpc GetCart(GetCartRequest) returns (CartResponse);
+}
+
+message CreateCartRequest {
+  string customer_id = 1;
+}
+
+message AddCartItemRequest {
+  string cart_id = 1;
+  string sku = 2;
+  int32 quantity = 3;
+  int64 expected_version = 4;
+}
+
+message RemoveCartItemRequest {
+  string cart_id = 1;
+  string sku = 2;
+  int64 expected_version = 3;
+}
+
+message GetCartRequest {
+  string cart_id = 1;
+}
+
+message CartResponse {
+  string cart_id = 1;
+  string customer_id = 2;
+  string status = 3;
+  int64 version = 4;
+  repeated ItemResponse items = 5;
+  int64 total_minor = 6;
+  string currency = 7;
+}

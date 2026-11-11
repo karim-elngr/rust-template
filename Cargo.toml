@@ -1,0 +1,72 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/shared-kernel",
+    "crates/cart",
+    "crates/orders",
+    "crates/payments",
+    "crates/checkout",
+    "crates/commerce",
+    "crates/platform",
+    "crates/contracts",
+    "crates/services",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+publish = false
+
+[workspace.dependencies]
+anyhow = "1.0"
+async-trait = "0.1"
+axum = { version = "0.8.9", features = ["json", "tokio", "http2"] }
+chrono = { version = "0.4", features = ["serde"] }
+http = "1"
+http-body-util = "0.1"
+opentelemetry = { version = "0.33", features = ["trace", "metrics"] }
+opentelemetry_sdk = { version = "0.33", features = ["trace", "metrics"] }
+opentelemetry-otlp = { version = "0.33", default-features = false, features = ["http-proto", "reqwest-blocking-client", "reqwest-rustls", "trace", "metrics"] }
+opentelemetry-http = "0.33"
+prost = "0.14"
+protox = "0.10"
+rdkafka = { version = "0.39", default-features = false, features = ["tokio", "tracing", "ssl-vendored"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "tls-rustls-ring", "postgres", "uuid", "chrono", "json", "migrate", "macros"] }
+testcontainers = "0.28"
+thiserror = "2"
+tokio = { version = "1.54", features = ["macros", "rt-multi-thread", "signal", "time", "sync", "net"] }
+tokio-stream = { version = "0.1", features = ["net"] }
+tokio-util = { version = "0.7", features = ["rt"] }
+tonic = { version = "0.14.9", features = ["transport"] }
+tonic-health = "0.14.9"
+tonic-prost = "0.14.9"
+tonic-prost-build = "0.14.9"
+tower = { version = "0.5", features = ["util", "limit", "timeout"] }
+tower-http = { version = "0.6", features = ["trace", "timeout", "limit", "request-id"] }
+tracing = "0.1"
+tracing-appender = "0.2.5"
+tracing-opentelemetry = "0.34"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+commerce = { path = "crates/commerce" }
+shared-kernel = { path = "crates/shared-kernel" }
+cart = { path = "crates/cart" }
+orders = { path = "crates/orders" }
+payments = { path = "crates/payments" }
+checkout = { path = "crates/checkout" }
+platform = { path = "crates/platform" }
+contracts = { path = "crates/contracts" }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+dbg_macro = "deny"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "debuginfo"
